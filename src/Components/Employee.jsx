@@ -65,7 +65,7 @@ function Employee({ socket }) {
 
     const fetchTasks = async () => {
       try {
-        const res = await axios.get(`http://127.0.0.1:8000/employeeTasks/${loggedUser.email}`)
+        const res = await axios.get(`${import.meta.env.VITE_URL}employeeTasks/${loggedUser.email}`)
         if (res.data.tasks) {
           setTasks(res.data.tasks)
         }

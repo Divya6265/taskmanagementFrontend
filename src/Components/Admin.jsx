@@ -33,7 +33,7 @@ function Admin() {
     const handleSignup = async () => {
         try {
             if (email && password && role) {
-                const res = await axios.post('http://127.0.0.1:8000/signup', {
+                const res = await axios.post(`${import.meta.env.VITE_URL}signup`, {
                     email, password, role
                 })
                 if (res.status) {

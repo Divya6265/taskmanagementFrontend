@@ -1,219 +1,224 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { toast } from 'react-toastify';
 import Toast from './Toast';
 import { logout } from '../UserSlice';
-import { useNavigate } from 'react-router-dom'
-import { useSelector, useDispatch } from 'react-redux'
+import { useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
 import Graph from './Graph';
+
 function Manager({ socket }) {
+    const accountDetails = useSelector((state) => state.account.value);
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
+    
+    const [loggedUser, setLoggedUser] = useState(null);
+    const [formData, setFormData] = useState({
+        title: "",
+        status: "",
+        description: "",
+        priority: "",
+        assignedTo: ""
+    });
+    const [employees, setEmployees] = useState([]);
+    const [tasks, setTasks] = useState([]);
+    const [mode, setMode] = useState(false);
+    const [taskId, setTaskId] = useState("");
+    const [filters, setFilters] = useState({
+        assignedTo: "",
+        status: "",
+        priority: ""
+    });
 
-
-    const accountDetails = useSelector((state) => state.account.value)
-    const dispatch = useDispatch()
-    const navigate = useNavigate()
     useEffect(() => {
         if (accountDetails) {
-            if (accountDetails.role === "Manager") {
-                navigate('/manage/dashboard')
-            } else if (accountDetails.role === "Employee") {
-                navigate('/employee/dashboard')
-            } else if (accountDetails.role === "Admin") {
-                navigate('/admin/dashboard')
+            // Redirect based on role
+            const roleRoutes = {
+                "Manager": '/manage/dashboard',
+                "Employee": '/employee/dashboard',
+                "Admin": '/admin/dashboard'
+            };
+            if (roleRoutes[accountDetails.role]) {
+                navigate(roleRoutes[accountDetails.role]);
             }
 
-            setLoggedUser(accountDetails)
-            setAssignedBy(accountDetails?._id)
-
-            const employee = async () => {
-                const res = await axios.get("http://127.0.0.1:8000/employees")
-                if (res.data.users) {
-                    setEmployees(res.data.users)
+            setLoggedUser(accountDetails);
+            
+            // Fetch employees
+            const fetchEmployees = async () => {
+                try {
+                    const res = await axios.get(`${import.meta.env.VITE_URL}employees`);
+                    if (res.data.users) {
+                        setEmployees(res.data.users);
+                    }
+                } catch (error) {
+                    console.error("Error fetching employees:", error);
+                    toast.error("Failed to load employees");
                 }
-            }
-            employee()
+            };
+            fetchEmployees();
         } else {
-            navigate('/')
+            navigate('/');
         }
-    }, [accountDetails])
-
-
-    const [loggedUser, setLoggedUser] = useState(null)
-    const [title, setTitle] = useState("")
-    const [status, setStatus] = useState("")
-    const [description, setDescription] = useState("")
-    const [priority, setPriority] = useState("")
-    const [assignedBy, setAssignedBy] = useState("")
-    const [assignedTo, setAssignedTo] = useState("")
-    const [employees, setEmployees] = useState([])
-    const [tasks, setTasks] = useState([])
-    const [mode, setMode] = useState(false)
-    const [taskid, setTaskid] = useState("")
-
-    const [filterByAssignedTo, setFilterByAssignedTo] = useState("")
-    const [filterByStatus, setFilterByStatus] = useState("")
-    const [filterByPriority, setFilterByPriority] = useState("")
-
-    const handleFiltercClear = () => {
-        setFilterByAssignedTo("")
-        setFilterByStatus("")
-        setFilterByPriority("")
-    }
+    }, [accountDetails, navigate]);
 
     useEffect(() => {
-        socket?.on("NewUserConnected", (message) => {
-            console.log(message)
-            toast.info(message);
-        })
-        socket?.on("IsthereAnUpdatedTaskStatus", (task) => {
-            console.log(task, "i hadd mana")
-            if (task.assignedBy === loggedUser?._id) {
-                setTasks((prev) => (
-                    prev.map((currentTask) => (
-                        currentTask._id === task._id ? task : currentTask
-                    ))
-                ))
-                toast.info("Status had Updated");
+        if (!loggedUser?._id) return;
+        
+        const fetchTasks = async () => {
+            try {
+                const res = await axios.get(`${import.meta.env.VITE_URL}managerTasks/${loggedUser._id}`);
+                if (res.data.tasks) {
+                    setTasks(res.data.tasks);
+                }
+            } catch (error) {
+                console.error("Error fetching tasks:", error);
+                toast.error("Failed to load tasks");
             }
-        })
+        };
+        fetchTasks();
+    }, [loggedUser]);
+
+    useEffect(() => {
+        const handleNewUser = (message) => {
+            console.log(message);
+            toast.info(message);
+        };
+
+        const handleTaskUpdate = (task) => {
+            if (task.assignedBy === loggedUser?._id) {
+                setTasks(prev => prev.map(t => t._id === task._id ? task : t));
+                toast.info("Task status updated");
+            }
+        };
+
+        socket?.on("NewUserConnected", handleNewUser);
+        socket?.on("IsthereAnUpdatedTaskStatus", handleTaskUpdate);
 
         return () => {
-            socket?.off("NewUserConnected")
-            socket?.off("IsthereAnUpdatedTaskStatus")
-        }
-    }, [socket])
+            socket?.off("NewUserConnected", handleNewUser);
+            socket?.off("IsthereAnUpdatedTaskStatus", handleTaskUpdate);
+        };
+    }, [socket, loggedUser]);
 
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
 
-    useEffect(() => {
-        if (!loggedUser?._id) return
-        const fetchTasks = async () => {
-            const res = await axios.get("http://127.0.0.1:8000/managerTasks/" + loggedUser._id)
-            if (res.data.tasks) {
-                setTasks(res.data.tasks)
-            }
-        }
-        fetchTasks()
-    }, [loggedUser])
+    const handleFilterChange = (e) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
+    };
+
+    const clearFilters = () => {
+        setFilters({
+            assignedTo: "",
+            status: "",
+            priority: ""
+        });
+    };
+
+    const clearForm = () => {
+        setFormData({
+            title: "",
+            status: "",
+            description: "",
+            priority: "",
+            assignedTo: ""
+        });
+        setTaskId("");
+        setMode(false);
+    };
 
     const handleCreate = async () => {
         try {
-            console.log(title, description, status, priority, assignedBy, assignedTo)
-            if (!title || !description || !status || !priority || !assignedBy || !assignedTo) {
-                alert("Please fill all fields")
-                return
+            if (!Object.values(formData).every(Boolean)) {
+                toast.error("Please fill all fields");
+                return;
             }
-            const res = await axios.post('http://127.0.0.1:8000/create', {
-                title,
-                status,
-                description,
-                priority,
-                assignedTo,
-                assignedBy
+
+            const res = await axios.post(`${import.meta.env.VITE_URL}create`, {
+                ...formData,
+                assignedBy: loggedUser._id
             }, {
                 headers: {
-                    Authorization: "Bearer " + loggedUser.token
+                    Authorization: `Bearer ${loggedUser.token}`
                 }
-            })
+            });
 
-            const { title: T, description: D, status: S, priority: P, assignedTo: A, _id: id } = res.data.task
-
-            socket?.emit("IhadAnUpdatedTask", {
-                ...res.data.task
-            })
-
-            setTasks((prev) => {
-                const data = [...prev,
-                { title: T, description: D, status: S, priority: P, assignedTo: A, _id: id }
-                ]
-                return data
-            })
-            console.log(res, "task added")
-
+            socket?.emit("IhadAnUpdatedTask", res.data.task);
+            setTasks(prev => [...prev, res.data.task]);
+            toast.success("Task created successfully");
+            clearForm();
         } catch (err) {
-            console.log(err)
+            console.error(err);
+            toast.error("Failed to create task");
         }
-        clearForm()
-    }
+    };
 
-    const clearForm = () => {
-        setTitle("")
-        setStatus("")
-        setDescription("")
-        setPriority("")
-        setAssignedTo("")
-        setTaskid("")
-    }
-
-    const handleForm = (id) => {
-        const task = tasks.find(task => task._id === id)
-
-        if (task) {
-            console.log(task._id, "form")
-            setTaskid(id)
-            setTitle(task.title)
-            setStatus(task.status)
-            setDescription(task.description)
-            setPriority(task.priority)
-            setAssignedTo(task.assignedTo)
-        }
-
-        setMode(true)
-    }
     const handleEdit = async () => {
-        console.log(title, description, status, priority, assignedBy, assignedTo)
         try {
-            if (!title || !description || !status || !priority || !assignedBy || !assignedTo) {
-                alert("Please fill all fields")
-                return
+            if (!Object.values(formData).every(Boolean)) {
+                toast.error("Please fill all fields");
+                return;
             }
-            const res = await axios.put("http://127.0.0.1:8000/update/" + taskid, {
-                title,
-                status,
-                description,
-                priority,
-                assignedTo,
-                assignedBy
+
+            const res = await axios.put(`${import.meta.env.VITE_URL}update/${taskId}`, {
+                ...formData,
+                assignedBy: loggedUser._id
             }, {
                 headers: {
-                    Authorization: "Bearer " + loggedUser.token
+                    Authorization: `Bearer ${loggedUser.token}`
                 }
-            })
-            socket?.emit("IhadAnUpdatedTaskEdit", {
-                ...res.data.task
-            })
+            });
 
-            setTasks((prev) => {
-                const data = prev.map(task => (
-                    task._id === taskid ? { ...res.data.task } : task
-                ))
-                return data
-            })
-            setMode(false)
-
+            socket?.emit("IhadAnUpdatedTaskEdit", res.data.task);
+            setTasks(prev => prev.map(t => t._id === taskId ? res.data.task : t));
+            toast.success("Task updated successfully");
+            clearForm();
         } catch (err) {
-            console.log(err)
+            console.error(err);
+            toast.error("Failed to update task");
         }
-        clearForm()
-    }
+    };
+
+    const handleFormEdit = (id) => {
+        const task = tasks.find(t => t._id === id);
+        if (task) {
+            setTaskId(id);
+            setFormData({
+                title: task.title,
+                status: task.status,
+                description: task.description,
+                priority: task.priority,
+                assignedTo: task.assignedTo
+            });
+            setMode(true);
+        }
+    };
 
     const filteredTasks = tasks.filter(task => {
         return (
-            (!filterByAssignedTo || task.assignedTo === filterByAssignedTo) &&
-            (!filterByPriority || task.priority === filterByPriority) &&
-            (!filterByStatus || task.status === filterByStatus)
-        )
-    })
+            (!filters.assignedTo || task.assignedTo === filters.assignedTo) &&
+            (!filters.priority || task.priority === filters.priority) &&
+            (!filters.status || task.status === filters.status)
+        );
+    });
+
     return (
-        <div className="min-h-screen bg-gray-100">
+        <div className="min-h-screen bg-gray-50">
             <Toast />
-            <header className="bg-white shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            
+            {/* Header */}
+            <header className="bg-white shadow">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                     <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
                     <div className="flex items-center space-x-4">
-                        <span className="text-sm font-medium text-gray-700">{accountDetails?.email}</span>
+                        <span className="text-sm font-medium text-gray-600">{accountDetails?.email}</span>
                         <button
                             onClick={() => dispatch(logout())}
-                            className="px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
+                            className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm"
                         >
                             Logout
                         </button>
@@ -221,207 +226,239 @@ function Manager({ socket }) {
                 </div>
             </header>
 
-            <div className="max-w-7xl mx-auto py-3">
-                <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-                    <Graph tasks={tasks} />
-                </div>
-                {/* Task Form */}
-                <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                {/* Analytics Section */}
+                <section className="mb-8">
+                    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <Graph tasks={tasks} />
+                    </div>
+                </section>
 
-                    <h2 className="text-xl font-semibold mb-4">{mode ? "Update Task" : "Assign New Task"}</h2>
-                    <form className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                            <input
-                                type="text"
-                                name="title"
-                                id="title"
-                                value={title}
-                                onChange={(e) => { setTitle(e.target.value) }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <input
-                                type="text"
-                                name="description"
-                                id="description"
-                                value={description}
-                                onChange={(e) => { setDescription(e.target.value) }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                            <select
-                                name="status"
-                                id="status"
-                                value={status}
-                                onChange={(e) => { setStatus(e.target.value) }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">Select Status</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Completed">Completed</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor="Priority" className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                            <select
-                                name="Priority"
-                                id="Priority"
-                                value={priority}
-                                onChange={(e) => { setPriority(e.target.value) }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">Select Priority</option>
-                                <option value="High">High</option>
-                                <option value="Medium">Medium</option>
-                                <option value="Low">Low</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor="assignedTo" className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
-                            <select
-                                name="assignedTo"
-                                id="assignedTo"
-                                value={assignedTo}
-                                onChange={(e) => { setAssignedTo(e.target.value) }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">Select Assignee</option>
-                                {employees.map(employee => (
-                                    <option key={employee._id} value={employee.email}>{employee.email}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="flex items-end">
-                            <button
-                                type="button"
-                                onClick={() => { mode ? handleEdit() : handleCreate() }}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300"
-                            >
-                                {mode ? "Update Task" : "Assign Task"}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                {/* Task Form Section */}
+                <section className="mb-8">
+                    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <h2 className="text-xl font-semibold text-gray-800 mb-6">
+                            {mode ? "Update Task" : "Create New Task"}
+                        </h2>
+                        
+                        <form className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label htmlFor="title" className="block text-sm font-medium text-gray-700">Title</label>
+                                <input
+                                    type="text"
+                                    id="title"
+                                    name="title"
+                                    value={formData.title}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                    placeholder="Task title"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description</label>
+                                <input
+                                    type="text"
+                                    id="description"
+                                    name="description"
+                                    value={formData.description}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                    placeholder="Task description"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
+                                <select
+                                    id="status"
+                                    name="status"
+                                    value={formData.status}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                >
+                                    <option value="">Select Status</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Completed">Completed</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="priority" className="block text-sm font-medium text-gray-700">Priority</label>
+                                <select
+                                    id="priority"
+                                    name="priority"
+                                    value={formData.priority}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                >
+                                    <option value="">Select Priority</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="assignedTo" className="block text-sm font-medium text-gray-700">Assign To</label>
+                                <select
+                                    id="assignedTo"
+                                    name="assignedTo"
+                                    value={formData.assignedTo}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                >
+                                    <option value="">Select Assignee</option>
+                                    {employees.map(employee => (
+                                        <option key={employee._id} value={employee.email}>
+                                            {employee.email}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="flex items-end">
+                                <button
+                                    type="button"
+                                    onClick={mode ? handleEdit : handleCreate}
+                                    className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-md transition-all duration-200 transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                >
+                                    {mode ? "Update Task" : "Create Task"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
 
                 {/* Filter Section */}
-                <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-                    <h2 className="text-xl font-semibold mb-4">Filter Tasks</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div>
-                            <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                            <select
-                                name="status"
-                                id="status"
-                                value={filterByStatus}
-                                onChange={(e) => setFilterByStatus(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">Select Status</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Completed">Completed</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                            <select
-                                name="priority"
-                                id="priority"
-                                value={filterByPriority}
-                                onChange={(e) => setFilterByPriority(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">Select Priority</option>
-                                <option value="High">High</option>
-                                <option value="Medium">Medium</option>
-                                <option value="Low">Low</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor="employee" className="block text-sm font-medium text-gray-700 mb-1">Assignee</label>
-                            <select
-                                name="employee"
-                                id="employee"
-                                value={filterByAssignedTo}
-                                onChange={(e) => setFilterByAssignedTo(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">Select Assignee</option>
-                                {employees.map(employee => (
-                                    <option key={employee._id} value={employee.email}>{employee.email}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="flex items-end">
-                            <button
-                                onClick={handleFiltercClear}
-                                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-md transition duration-300"
-                            >
-                                Clear Filters
-                            </button>
+                <section className="mb-8">
+                    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <h2 className="text-xl font-semibold text-gray-800 mb-6">Filter Tasks</h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <div className="space-y-2">
+                                <label htmlFor="filter-status" className="block text-sm font-medium text-gray-700">Status</label>
+                                <select
+                                    id="filter-status"
+                                    name="status"
+                                    value={filters.status}
+                                    onChange={handleFilterChange}
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                >
+                                    <option value="">All Statuses</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Completed">Completed</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="filter-priority" className="block text-sm font-medium text-gray-700">Priority</label>
+                                <select
+                                    id="filter-priority"
+                                    name="priority"
+                                    value={filters.priority}
+                                    onChange={handleFilterChange}
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                >
+                                    <option value="">All Priorities</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="filter-assignedTo" className="block text-sm font-medium text-gray-700">Assignee</label>
+                                <select
+                                    id="filter-assignedTo"
+                                    name="assignedTo"
+                                    value={filters.assignedTo}
+                                    onChange={handleFilterChange}
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                                >
+                                    <option value="">All Assignees</option>
+                                    {employees.map(employee => (
+                                        <option key={employee._id} value={employee.email}>
+                                            {employee.email}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="flex items-end">
+                                <button
+                                    onClick={clearFilters}
+                                    className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
+                                >
+                                    Clear Filters
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                {/* Tasks List */}
-                <div className="bg-white rounded-lg shadow-md p-6">
-                    <h2 className="text-xl font-semibold mb-4">Tasks</h2>
-                    {filteredTasks.length === 0 ? (
-                        <p className="text-gray-500 text-center py-4">No Tasks Found</p>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredTasks.map((task) => (
-                                        <tr key={task._id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{task.title}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{task.description}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                    ${task.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                                    {task.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                    ${task.priority === 'High' ? 'bg-red-100 text-red-800' :
-                                                        task.priority === 'Medium' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                    {task.priority}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{task.assignedTo}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                <button
-                                                    onClick={() => { handleForm(task._id) }}
-                                                    className="text-blue-600 hover:text-blue-900 mr-3"
-                                                >
-                                                    Edit
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                {/* Tasks List Section */}
+                <section>
+                    <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
+                        <div className="px-6 py-4 border-b border-gray-200">
+                            <h2 className="text-xl font-semibold text-gray-800">Tasks</h2>
                         </div>
-                    )}
-                </div>
-            </div>
+                        
+                        {filteredTasks.length === 0 ? (
+                            <div className="p-8 text-center">
+                                <p className="text-gray-500">No tasks found matching your criteria</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {filteredTasks.map((task) => (
+                                            <tr key={task._id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{task.title}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate">{task.description}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                        ${task.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                        {task.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                        ${task.priority === 'High' ? 'bg-red-100 text-red-800' :
+                                                            task.priority === 'Medium' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                        {task.priority}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{task.assignedTo}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <button
+                                                        onClick={() => handleFormEdit(task._id)}
+                                                        className="text-blue-600 hover:text-blue-800 font-medium"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </section>
+            </main>
         </div>
-    )
+    );
 }
 
-export default Manager
+export default Manager;

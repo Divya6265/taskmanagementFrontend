@@ -18,7 +18,7 @@ function App() {
   useEffect(() => {
 
     if(accountDetails){
-      const websocket = new io("http://127.0.0.1:8000", {
+      const websocket = new io(import.meta.env.VITE_URL, {
         autoConnect: true,
         reconnection: true,
       });

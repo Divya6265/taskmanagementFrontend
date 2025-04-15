@@ -8,7 +8,7 @@ function EmpTask({ task, setTasks, socket }) {
     const handleStatus = async () => {
         setIsUpdating(true)
         try {
-            const res = await axios.patch(`http://127.0.0.1:8000/updateEmpTask/${task._id}`, { 
+            const res = await axios.patch(`${import.meta.env.VITE_URL}updateEmpTask/${task._id}`, { 
                 status: updatedStatus 
             })
             if (res.status) {

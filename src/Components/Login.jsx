@@ -32,7 +32,7 @@ function Login() {
         setIsLoading(true)
         setError("")
         try {
-            const res = await axios.post('http://127.0.0.1:8000/login', {
+            const res = await axios.post(`${import.meta.env.VITE_URL}login`, {
                 email, password
             })
 
