@@ -19,7 +19,7 @@ function Employee({ socket }) {
   useEffect(() => {
     if (accountDetails) {
       if (accountDetails.role === "Manager") {
-        navigate('/manage/dashboard')
+        navigate('/manager/dashboard')
       } else if (accountDetails.role === "Employee") {
         navigate('/employee/dashboard')
       } else if (accountDetails.role === "Admin") {

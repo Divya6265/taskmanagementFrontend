@@ -44,7 +44,7 @@ function App() {
     <Routes>
       <Route path='/' element={<Login/>}></Route>
       <Route path='/admin/dashboard' element={<Admin />}></Route>
-      <Route path='/manage/dashboard' element={<Manager socket={socket} />}></Route>
+      <Route path='/manager/dashboard' element={<Manager socket={socket} />}></Route>
       <Route path='/employee/dashboard' element={<Employee socket={socket} />}></Route>
     </Routes>
     </BrowserRouter>

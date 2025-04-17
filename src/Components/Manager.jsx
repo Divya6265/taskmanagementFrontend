@@ -33,13 +33,14 @@ function Manager({ socket }) {
     useEffect(() => {
         if (accountDetails) {
             // Redirect based on role
-            const roleRoutes = {
-                "Manager": '/manage/dashboard',
-                "Employee": '/employee/dashboard',
-                "Admin": '/admin/dashboard'
-            };
-            if (roleRoutes[accountDetails.role]) {
-                navigate(roleRoutes[accountDetails.role]);
+            if(accountDetails){
+                if (accountDetails.role === "Manager") {
+                    navigate('/manager/dashboard')
+                } else if (accountDetails.role === "Employee") {
+                    navigate('/employee/dashboard')
+                } else if(accountDetails.role === "Admin"){
+                    navigate('/admin/dashboard')
+                }
             }
 
             setLoggedUser(accountDetails);
